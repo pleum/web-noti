@@ -1,72 +1,58 @@
-import React, { useState, useCallback } from 'react';
+import React from 'react';
+import axios from 'axios';
 import { urlB64ToUint8Array } from './util';
 
-const subscribePush = async serverKey => {
-  if ('serviceWorker' in navigator) {
-    try {
-      const pushManager = await getPushManager();
-      const subscription = await pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlB64ToUint8Array(serverKey)
-      });
-      console.log('Subscribe', JSON.stringify(subscription.toJSON()));
-    } catch (e) {
-      if (Notification.permission === 'denied') {
-        console.warn('Permission for notifications was denied');
-      } else {
-        console.error('Unable to subscribe to push', e);
-      }
+const subscribePush = async () => {
+    if ('serviceWorker' in navigator) {
+        try {
+            const subRes = await axios.get('http://localhost:8080/sub');
+            const publicKey = subRes.data.publicKey;
+            console.log(publicKey);
+
+            const pushManager = await getPushManager();
+            const subscription = await pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlB64ToUint8Array(publicKey)
+            });
+
+            const sub = JSON.stringify(subscription.toJSON());
+            await axios.post('http://localhost:8080/sub', { sub });
+            console.log('Subscribe', sub);
+        } catch (e) {
+            if (Notification.permission === 'denied') {
+                console.warn('Permission for notifications was denied');
+            } else {
+                console.error('Unable to subscribe to push', e);
+            }
+        }
     }
-  }
 };
 
 const getPushManager = async () => {
-  const registration = await navigator.serviceWorker.ready;
-  return registration.pushManager;
+    const registration = await navigator.serviceWorker.ready;
+    return registration.pushManager;
 };
 
 const unsubscribePush = async () => {
-  const pushManager = await getPushManager();
-  const subscription = await pushManager.getSubscription();
-  return subscription.unsubscribe();
+    const pushManager = await getPushManager();
+    const subscription = await pushManager.getSubscription();
+    return subscription.unsubscribe();
 };
 
 function App() {
-  const [serverKey, setSeverKey] = useState('');
-
-  const subscribePushNotification = useCallback(() => {
-    subscribePush(serverKey);
-  }, [serverKey]);
-
-  const unsubscribePushNotification = () => {
-    unsubscribePush();
-  };
-
-  const handleServerKeyChanged = e => {
-    setSeverKey(e.target.value);
-  };
-
-  return (
-    <div>
-      <header>
-        <h1>Web Notification</h1>
-      </header>
-      <main>
+    return (
         <div>
-          <div>
-            Server key:{' '}
-            <input
-              type="text"
-              value={serverKey}
-              onChange={handleServerKeyChanged}
-            />
-          </div>
-          <button onClick={subscribePushNotification}>Subscribe</button>
-          <button onClick={unsubscribePushNotification}>Unsubscribe</button>
+            <header>
+                <h1>Web Notification</h1>
+            </header>
+            <main>
+                <div>
+                    <button onClick={subscribePush}>Subscribe</button>
+                    <button onClick={unsubscribePush}>Unsubscribe</button>
+                </div>
+            </main>
         </div>
-      </main>
-    </div>
-  );
+    );
 }
 
 export default App;
